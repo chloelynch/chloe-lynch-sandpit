@@ -2,14 +2,14 @@
 # Stone Soup 02 - Extended Kalman
 # Some general imports and set up
 
-from IPython import get_ipython
-get_ipython().run_line_magic('matplotlib', 'inline')
+#from IPython import get_ipython
+#get_ipython().run_line_magic('matplotlib', 'inline')
 
 from datetime import timedelta
 from datetime import datetime
 
 import numpy as np
-
+#%%
 # Simulate Data
 
 from stonesoup.types.groundtruth import GroundTruthPath, GroundTruthState
@@ -17,7 +17,7 @@ from stonesoup.types.groundtruth import GroundTruthPath, GroundTruthState
 # Figure to plot truth (and future data)
 from matplotlib import pyplot as plt
 fig = plt.figure(figsize=(10, 6))
-ax = fig.add_subplot(1, 1, 1)
+ax = fig.add_subplot(1,1,1)
 ax.set_xlabel("$x$")
 ax.set_ylabel("$y$")
 
@@ -31,10 +31,12 @@ for n in range(1, 21):
     truth.append(GroundTruthState(np.array([[xy[0]], [xy[1]]]), timestamp=start_time+timedelta(seconds=n)))
     
 #Plot the result
+fig
 ax.plot([state.state_vector[0, 0] for state in truth], 
         [state.state_vector[1, 0] for state in truth], 
         linestyle="--")
 
+#%%
 from scipy.stats import multivariate_normal
 
 from stonesoup.types.detection import Detection
@@ -64,18 +66,17 @@ x, y = pol2cart(
 ax.scatter(x + sensor_x,
            y + sensor_y,
            color='b')
-fig
-
-plt.polar([state.state_vector[0, 0] for state in measurements], 
-        [state.state_vector[1, 0] for state in measurements])
-
+#%%
 # Create Models and Extended Kalman Filter
-
+#%%
 from stonesoup.models.transition.linear import CombinedLinearGaussianTransitionModel, ConstantVelocity
 transition_model = CombinedLinearGaussianTransitionModel((ConstantVelocity(0.1), ConstantVelocity(0.1)))
 
+#%%
 from stonesoup.predictor.kalman import ExtendedKalmanPredictor
 predictor = ExtendedKalmanPredictor(transition_model)
+
+#%%
 
 from stonesoup.models.measurement.nonlinear import CartesianToBearingRange
 measurement_model = CartesianToBearingRange(
@@ -85,14 +86,18 @@ measurement_model = CartesianToBearingRange(
     translation_offset=np.array([[sensor_x], [sensor_y]]) # Location of sensor in cartesian.
 )
 
+#%%
+
 from stonesoup.updater.kalman import ExtendedKalmanUpdater
 updater = ExtendedKalmanUpdater(measurement_model)
 
+#%%
 # Running the Extended Kalman Filter
 
 from stonesoup.types.state import GaussianState
 prior = GaussianState([[0], [1], [0], [1]], np.diag([1, 1, 1, 1]), timestamp=start_time)
 
+#%%
 from stonesoup.types.hypothesis import SingleHypothesis
 from stonesoup.types.track import Track
 
@@ -103,13 +108,12 @@ for measurement in measurements:
     post = updater.update(hypothesis)
     track.append(post)
     prior = track[-1]
-
 # Plot the resulting track
 ax.plot([state.state_vector[0, 0] for state in track], 
         [state.state_vector[2, 0] for state in track],
         marker=".")
-fig
 
+#%%
 from matplotlib.patches import Ellipse
 HH = np.array([[ 1.,  0.,  0.,  0.],
                [ 0.,  0.,  1.,  0.]])
@@ -122,5 +126,10 @@ for state in track:
                       angle=np.rad2deg(orient),
                       alpha=0.2)
     ax.add_artist(ellipse)
+plt.show()
+#%%
 fig
-
+plt.polar([state.state_vector[0, 0] for state in measurements], 
+        [state.state_vector[1, 0] for state in measurements])
+ 
+plt.show()

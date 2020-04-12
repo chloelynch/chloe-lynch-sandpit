@@ -42,7 +42,7 @@ from stonesoup.types.array import StateVector, CovarianceMatrix
 
 # Arbitrary initial state of target.
 initial_state=GaussianState( StateVector([[0], [0], [0], [0]]),
-        CovarianceMatrix(np.diag([1000000, 10, 1000000, 10]))),
+        CovarianceMatrix(np.diag([1000000, 10, 1000000, 10])))
 
 from stonesoup.simulator.simple import SingleTargetGroundTruthSimulator
 groundtruth_sim = SingleTargetGroundTruthSimulator(
@@ -123,8 +123,12 @@ tracker = SingleTargetTracker(
 # 6. Display Results
 
 tracks = set()
+for time,current_tracks in tracker.tracks_gen():
+    tracks = tracks.union(current_tracks)
+    
 groundtruth_paths = set()  # Store for plotting later
 detections = set()  # Store for plotting later
+
 
 # METRICSGENERATOR 
 from stonesoup.metricgenerator.plotter import TwoDPlotter

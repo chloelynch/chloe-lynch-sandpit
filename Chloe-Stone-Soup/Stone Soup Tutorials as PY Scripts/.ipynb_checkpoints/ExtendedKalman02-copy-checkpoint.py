@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
-# Stone Soup 03 - Particle Filter
-
+# Stone Soup 02 - Extended Kalman
 # Some general imports and set up
-import matplotlib
+
+from IPython import get_ipython
+get_ipython().run_line_magic('matplotlib', 'inline')
 
 from datetime import timedelta
 from datetime import datetime
 
 import numpy as np
 
-# Simulate Data 
+# Simulate Data
 
 from stonesoup.types.groundtruth import GroundTruthPath, GroundTruthState
 
@@ -25,10 +26,10 @@ start_time = datetime.now()
 for n in range(1, 21):
     x = n
     y = n
-    varxy = np.array([[0.05,0],[0,0.05]])
+    varxy = np.array([[0.1,0],[0,0.1]])
     xy = np.random.multivariate_normal(np.array([x,y]),varxy)
     truth.append(GroundTruthState(np.array([[xy[0]], [xy[1]]]), timestamp=start_time+timedelta(seconds=n)))
-
+    
 #Plot the result
 ax.plot([state.state_vector[0, 0] for state in truth], 
         [state.state_vector[1, 0] for state in truth], 
@@ -48,10 +49,11 @@ for state in truth:
     y = state.state_vector[1, 0]
     delta_x = (x - sensor_x)
     delta_y = (y - sensor_y)
-    rho, phi = multivariate_normal.rvs(
+    #rho, phi = multivariate_normal.rvs(
+    rho, phi = np.random.multivariate_normal(
         cart2pol(delta_x, delta_y),
-        np.diag([0.1, np.radians(0.1)]))
-        
+        np.diag([1, np.radians(0.2)]))
+    # Special Bearing type used to allow difference in angle calculations    
     measurements.append(Detection(
         np.array([[Bearing(phi)], [rho]]), timestamp=state.timestamp))
     
@@ -59,48 +61,37 @@ for state in truth:
 x, y = pol2cart(
     np.hstack(state.state_vector[1, 0] for state in measurements),
     np.hstack(state.state_vector[0, 0] for state in measurements))
-fig
 ax.scatter(x + sensor_x,
            y + sensor_y,
            color='b')
+fig
 
-# Create Models and Particle Filter
+plt.polar([state.state_vector[0, 0] for state in measurements], 
+        [state.state_vector[1, 0] for state in measurements])
+
+# Create Models and Extended Kalman Filter
+
 from stonesoup.models.transition.linear import CombinedLinearGaussianTransitionModel, ConstantVelocity
-transition_model = CombinedLinearGaussianTransitionModel((ConstantVelocity(0.05), ConstantVelocity(0.05)))
+transition_model = CombinedLinearGaussianTransitionModel((ConstantVelocity(0.1), ConstantVelocity(0.1)))
 
-from stonesoup.predictor.particle import ParticlePredictor
-predictor = ParticlePredictor(transition_model)
+from stonesoup.predictor.kalman import ExtendedKalmanPredictor
+predictor = ExtendedKalmanPredictor(transition_model)
 
 from stonesoup.models.measurement.nonlinear import CartesianToBearingRange
 measurement_model = CartesianToBearingRange(
     4, # Number of state dimensions (position and velocity in 2D)
-    (0, 2), # Mapping measurement vector index to state index
-    np.diag([np.radians(0.1), 0.1]),  # Covariance matrix for Gaussian PDF
+    (0,2), # Mapping measurement vector index to state index
+    np.diag([np.radians(0.2), 1]),  # Covariance matrix for Gaussian PDF
     translation_offset=np.array([[sensor_x], [sensor_y]]) # Location of sensor in cartesian.
 )
 
-from stonesoup.resampler.particle import SystematicResampler
-resampler = SystematicResampler()
+from stonesoup.updater.kalman import ExtendedKalmanUpdater
+updater = ExtendedKalmanUpdater(measurement_model)
 
-from stonesoup.updater.particle import ParticleUpdater
-updater = ParticleUpdater(measurement_model, resampler)
+# Running the Extended Kalman Filter
 
-# Running the Particle Filter
-
-from stonesoup.types.state import ParticleState
-from stonesoup.types.particle import Particle
-from stonesoup.types.numeric import Probability
-
-number_particles = 200
-samples = multivariate_normal.rvs(np.array([0, 1, 0, 1]),
-                                  np.diag([1, 1, 1, 1]),
-                                  size=number_particles)
-particles = [
-    Particle(sample.reshape(-1, 1), weight=Probability(1/number_particles))
-    for sample in samples]
-prior = ParticleState(
-    particles,
-    timestamp=start_time)
+from stonesoup.types.state import GaussianState
+prior = GaussianState([[0], [1], [0], [1]], np.diag([1, 1, 1, 1]), timestamp=start_time)
 
 from stonesoup.types.hypothesis import SingleHypothesis
 from stonesoup.types.track import Track
@@ -117,14 +108,19 @@ for measurement in measurements:
 ax.plot([state.state_vector[0, 0] for state in track], 
         [state.state_vector[2, 0] for state in track],
         marker=".")
-
-for state in track:
-    data = np.array([particle.state_vector for particle in state.particles])
-    ax.plot(data[:,0], data[:,2], linestyle='', marker=".", markersize=1, alpha=0.5)
-
-plt.show()
-#%%
 fig
 
-plt.polar([state.state_vector[0, 0] for state in measurements], 
-        [state.state_vector[1, 0] for state in measurements])
+from matplotlib.patches import Ellipse
+HH = np.array([[ 1.,  0.,  0.,  0.],
+               [ 0.,  0.,  1.,  0.]])
+for state in track:
+    w, v = np.linalg.eig(HH@state.covar@HH.T)
+    max_ind = np.argmax(v[0, :])
+    orient = np.arctan2(v[max_ind, 1], v[max_ind, 0])
+    ellipse = Ellipse(xy=state.state_vector[(0,2), 0],
+                      width=np.sqrt(w[0])*2, height=np.sqrt(w[1])*2,
+                      angle=np.rad2deg(orient),
+                      alpha=0.2)
+    ax.add_artist(ellipse)
+fig
+
