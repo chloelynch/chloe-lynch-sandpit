@@ -9,8 +9,8 @@ import datetime
 import numpy as np
 
 # Plotting
-from IPython import get_ipython
-get_ipython().run_line_magic('matplotlib', 'inline')
+#from IPython import get_ipython
+#get_ipython().run_line_magic('matplotlib', 'inline')
 import matplotlib
 from matplotlib import pyplot as plt
 plt.rcParams['figure.figsize'] = (10, 6)
@@ -123,12 +123,16 @@ tracker = SingleTargetTracker(
 # 6. Display Results
 
 tracks = set()
-for time,current_tracks in tracker.tracks_gen():
-    tracks = tracks.union(current_tracks)
-    
+#for time,current_tracks in tracker.tracks_gen():
+#    tracks = tracks.union(current_tracks)
 groundtruth_paths = set()  # Store for plotting later
 detections = set()  # Store for plotting later
 
+for step, (time,ctracks) in enumerate(tracker.tracks_gen(),1):
+    tracks.update(ctracks)
+    detections |= tracker.detector.detections
+    if not step % 10:
+       print("Step: {} Time: {}".format(step, time))
 
 # METRICSGENERATOR 
 from stonesoup.metricgenerator.plotter import TwoDPlotter
