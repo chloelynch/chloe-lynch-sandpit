@@ -21,15 +21,14 @@ plt.style.use('seaborn-colorblind')
 #MODELS 
 # Linear Gaussian transition model like in the 01-Kalman example
 from stonesoup.models.transition.linear import CombinedLinearGaussianTransitionModel, ConstantVelocity
-transition_model = CombinedLinearGaussianTransitionModel((ConstantVelocity(0.05), ConstantVelocity(0.05)))
+transition_model = CombinedLinearGaussianTransitionModel((ConstantVelocity(1), ConstantVelocity(1)))
 
 # Use a Linear Gaussian measurement model like in 01-Kalman example
 from stonesoup.models.measurement.linear import LinearGaussian
 measurement_model = LinearGaussian(
-    4, # Number of state dimensions (position and velocity in 2D)
-    (0,2), # Mapping measurement vector index to state index
-    np.array([[10, 0],  # Covariance matrix for Gaussian PDF
-              [0, 10]])
+    ndim_state = 4, # Number of state dimensions (position and velocity in 2D)
+    mapping = [0,2], # Mapping measurement vector index to state index
+    noise_covar = np.diag([10, 10])  # Covariance matrix for Gaussian PDF
     )
 
 #SIMULATORS
@@ -48,7 +47,7 @@ from stonesoup.simulator.simple import SingleTargetGroundTruthSimulator
 groundtruth_sim = SingleTargetGroundTruthSimulator(
             transition_model=transition_model,
             initial_state=initial_state,
-            timestep=datetime.timedelta(seconds=1),
+            timestep=datetime.timedelta(seconds=5),
             number_steps=100)
 
 # DETECTION SIMULATOR
@@ -58,7 +57,7 @@ detection_sim = SimpleDetectionSimulator(groundtruth=groundtruth_sim,
                        measurement_model=measurement_model,
                        meas_range=np.array([[-1, 1],[-1, 1]])*5000, 
                        detection_probability=0.9, 
-                       clutter_rate=0.2)
+                       clutter_rate=1)
                                 
 detections_source = detection_sim
 
@@ -72,7 +71,7 @@ detections_source = detection_sim
 # Kalman Filter Components 
 # PRIOR STATE
 # Creating a prior estimate of where we think our target will be
-prior = initial_state 
+#prior = initial_state 
 
 # PREDICTOR
 from stonesoup.predictor.kalman import KalmanPredictor
@@ -98,12 +97,12 @@ data_associator = NearestNeighbour(hypothesiser)
 # INITIATOR
 from stonesoup.initiator.simple import SimpleMeasurementInitiator
 initiator = SimpleMeasurementInitiator(
-    GaussianState(np.array([[0], [0], [0], [0]]), np.diag([10000, 100, 10000, 1000])),
+    GaussianState(np.array([[0], [0], [0], [0]]), np.diag([1000000, 10, 1000000, 10])),
     measurement_model=measurement_model)
 
 # DELETER
 from stonesoup.deleter.error import CovarianceBasedDeleter
-deleter = CovarianceBasedDeleter(covar_trace_thresh=1E-3)
+deleter = CovarianceBasedDeleter(covar_trace_thresh=1E3)
 
 
 # 5. Running the Tracker
